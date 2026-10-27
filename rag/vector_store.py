@@ -103,7 +103,11 @@ class VectorStore:
             doc_key = stable_key(doc_config)
             doc_db = self._load("documents", doc_key, doc_config)
             if doc_db is None:
-                doc_chunks, stat, issues = process_pdf(name, data, self.settings)
+                page_progress = None
+                if progress:
+                    def page_progress(fraction, text):
+                        progress((position + fraction * 0.8) / len(ordered), text=text)
+                doc_chunks, stat, issues = process_pdf(name, data, self.settings, page_progress)
                 warnings.extend(issues)
                 if not doc_chunks:
                     stats.append(stat)
@@ -120,7 +124,7 @@ class VectorStore:
             if progress:
                 progress((position + 1) / len(ordered))
         if not chunks:
-            raise RAGError("No readable PDF text was found. Upload text PDFs or apply OCR/unlock them first. " + " ".join(warnings))
+            raise RAGError("No readable PDF text was found after local OCR. Try clearer scans or unlocked PDFs. " + " ".join(warnings))
         db = Database(self._index(np.concatenate(arrays), len(chunks)), chunks, stats,
                       list(dict.fromkeys(warnings)), key)
         self._save("collections", db, config)

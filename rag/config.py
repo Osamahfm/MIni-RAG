@@ -27,5 +27,6 @@ class Settings:
         config = asdict(self)
         config.pop("generation_model")
         config.pop("ollama_url")
-        return {"schema": 2, "provider": "ollama", "embedding_prefix": "nomic-search-v1",
+        return {"schema": 3, "extractor": "pypdf-rapidocr-cpu-v1",
+                "provider": "ollama", "embedding_prefix": "nomic-search-v1",
                 "splitter": "recursive-v1", **config}

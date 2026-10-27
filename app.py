@@ -53,7 +53,7 @@ def main():
     with st.sidebar:
         st.header("Your library", icon=":material/folder_open:")
         files = st.file_uploader("Add PDF files", type="pdf", accept_multiple_files=True,
-                                 help="Text PDFs work best. Remove a file using its × button.")
+                                 help="Text and scanned PDFs are supported. Scanned pages use local CPU OCR and take longer to index.")
         use_sample = st.checkbox("Use included document.pdf", value=False) if (ROOT / "document.pdf").exists() else False
         with st.expander("Retrieval settings", icon=":material/tune:"):
             chunk_size = st.number_input("Chunk size (characters)", min_value=100, max_value=2000, value=500, step=100)
@@ -110,6 +110,8 @@ def main():
                     with st.container(border=True):
                         st.text(doc["source"])
                         st.caption(f"{doc['pages']} pages · {doc.get('chunks', 0)} chunks")
+                        if doc.get("ocr_pages"):
+                            st.caption(f"Local OCR read {doc['ocr_pages']} scanned pages. Check passages for recognition errors.")
         for warning in database.warnings:
             st.warning(warning)
     else:
