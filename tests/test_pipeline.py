@@ -209,14 +209,14 @@ def test_generation_and_model_list():
 
     def handler(request):
         if request.url.path == "/api/tags":
-            return httpx.Response(200, json={"models": [{"name": "qwen3:4b"}]})
+            return httpx.Response(200, json={"models": [{"name": "qwen3:0.6b"}]})
         assert request.url.path == "/api/chat"
         requests.append(json.loads(request.content))
         return httpx.Response(200, json={"message": {"content": " ready "}})
 
     with httpx.Client(transport=httpx.MockTransport(handler)) as client:
         service = OllamaService(Settings(), client=client)
-        assert service.list_models() == ["qwen3:4b"]
+        assert service.list_models() == ["qwen3:0.6b"]
         assert service.generate("question", "instruction") == "ready"
         assert requests[0]["messages"] == [{"role": "system", "content": "instruction"},
                                            {"role": "user", "content": "question"}]

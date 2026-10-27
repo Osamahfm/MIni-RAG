@@ -7,11 +7,11 @@ A local Python 3.13 application for studying several PDF documents in one conver
 Install [Ollama for Windows](https://ollama.com/download/windows), then download both local models:
 
 ```powershell
-ollama pull qwen3:4b
+ollama pull qwen3:0.6b
 ollama pull nomic-embed-text
 ```
 
-Keep Ollama running. If its desktop app is not running, start `ollama serve` in another terminal. Model downloads need internet access; after download, embeddings and answers run locally. The answer model download is about 2.5 GB; available RAM and GPU determine speed.
+Keep Ollama running. If its desktop app is not running, start `ollama serve` in another terminal. Model downloads need internet access; after download, embeddings and answers run locally. The answer model download is about 523 MB; available RAM and GPU determine speed.
 
 From the project directory:
 
@@ -70,7 +70,7 @@ An **embedding** converts a passage into a list of numbers representing its mean
 
 For a follow-up such as “How does it work?”, The local answer model uses up to six recent messages to rewrite it as “How does MapReduce work?”. The rewritten question is embedded and used for search. If rewriting fails, the original question is used. Conversation history helps interpret references; it is never supplied as factual evidence to answer generation.
 
-The most relevant passages, their filenames, and their original one-based PDF page numbers are sent to the local `qwen3:4b` model through Ollama. A separate system instruction restricts the answer to these passages and treats PDF content as untrusted data. The answer must use citations such as `[Source: lecture.pdf, Page 3]`. Answers with missing, malformed, or unretrieved citations are replaced by an unsupported-information message. Retrieved passages and actually cited references are displayed separately.
+The most relevant passages, their filenames, and their original one-based PDF page numbers are sent to the local `qwen3:0.6b` model through Ollama. A separate system instruction restricts the answer to these passages and treats PDF content as untrusted data. The answer must use citations such as `[Source: lecture.pdf, Page 3]`. Answers with missing, malformed, or unretrieved citations are replaced by an unsupported-information message. Retrieved passages and actually cited references are displayed separately.
 
 Citation validation checks that the referenced page was retrieved. It cannot prove that every claim logically follows from that page. Always inspect the passages for important conclusions. A model can still make mistakes or be influenced by malicious content despite prompt defenses.
 
@@ -86,7 +86,7 @@ Citation validation checks that the referenced page was retrieved. It cannot pro
 
 ## Technology and project layout
 
-Python 3.13; Streamlit; Ollama with `nomic-embed-text` and `qwen3:4b`; FAISS CPU; PyPDF; LangChain RecursiveCharacterTextSplitter; NumPy; python-dotenv; httpx.
+Python 3.13; Streamlit; Ollama with `nomic-embed-text` and `qwen3:0.6b`; FAISS CPU; PyPDF; LangChain RecursiveCharacterTextSplitter; NumPy; python-dotenv; httpx.
 
 ```text
 app.py                    Streamlit UI and session chat state

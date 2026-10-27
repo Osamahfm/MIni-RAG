@@ -14,7 +14,7 @@ class Settings:
     chunk_overlap: int = 100
     embedding_model: str = field(default_factory=lambda: os.getenv("OLLAMA_EMBEDDING_MODEL", "nomic-embed-text"))
     dimension: int = 768
-    generation_model: str = field(default_factory=lambda: os.getenv("OLLAMA_MODEL", "qwen3:4b"))
+    generation_model: str = field(default_factory=lambda: os.getenv("OLLAMA_MODEL", "qwen3:0.6b"))
     ollama_url: str = field(default_factory=lambda: os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"))
 
     def __post_init__(self):
