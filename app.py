@@ -5,7 +5,7 @@ import json
 import streamlit as st
 
 from rag.config import ROOT, Settings
-from rag.embeddings import GeminiService, RAGError
+from rag.embeddings import OllamaService, RAGError
 from rag.generator import ask, citation
 from rag.vector_store import VectorStore
 
@@ -43,7 +43,7 @@ def main():
     st.session_state.setdefault("pending_question", None)
     service = None
     try:
-        service = GeminiService(Settings())
+        service = OllamaService(Settings())
     except RAGError as exc:
         st.warning(str(exc))
 
@@ -91,7 +91,7 @@ def main():
                      width="stretch"):
             st.session_state.messages = []
             st.session_state.pending_question = None
-        st.caption("PDF text and questions are sent to Google Gemini. Indexes stay in this project's cache folder.")
+        st.caption("Embeddings and answers use Ollama. With the default localhost address, PDF text and questions stay on this computer.")
 
     database = st.session_state.database
     if database:

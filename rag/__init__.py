@@ -1,1 +1,1 @@
-"""Local PDF retrieval and grounded Gemini answers."""
+"""Local PDF retrieval and grounded Ollama answers."""

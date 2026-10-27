@@ -3,18 +3,18 @@ import argparse
 from pathlib import Path
 
 from rag.config import ROOT, Settings
-from rag.embeddings import GeminiService, RAGError
+from rag.embeddings import OllamaService, RAGError
 from rag.generator import ask
 from rag.vector_store import VectorStore
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Chat with local PDFs using Gemini and FAISS.")
+    parser = argparse.ArgumentParser(description="Chat with local PDFs using Ollama and FAISS.")
     parser.add_argument("pdfs", nargs="*", type=Path, default=[ROOT / "document.pdf"])
     args = parser.parse_args()
     try:
         settings = Settings()
-        service = GeminiService(settings)
+        service = OllamaService(settings)
         db = VectorStore(ROOT / "cache", settings).build([(p.name, p.read_bytes()) for p in args.pdfs], service)
         print(f"Ready: {len(db.documents)} documents, {len(db.chunks)} chunks. Type /clear or /quit.")
         for warning in db.warnings:

@@ -16,7 +16,7 @@ def test_ui_build_chat_followup_clear_and_selection(tmp_path):
         store.cache_dir = tmp_path
         return original(store, *args, **kwargs)
 
-    with patch("rag.embeddings.GeminiService", return_value=fake), patch.object(VectorStore, "build", build):
+    with patch("rag.embeddings.OllamaService", return_value=fake), patch.object(VectorStore, "build", build):
         app = AppTest.from_file(str(ROOT / "app.py"), default_timeout=20).run()
         assert not app.exception
         assert app.chat_input[0].disabled
@@ -39,11 +39,11 @@ def test_ui_build_chat_followup_clear_and_selection(tmp_path):
         assert app.session_state["database"] is None and app.chat_input[0].disabled
 
 
-def test_ui_missing_credentials():
-    with patch("rag.embeddings.GeminiService", side_effect=RAGError("GEMINI_API_KEY is missing.")):
+def test_ui_invalid_local_configuration():
+    with patch("rag.embeddings.OllamaService", side_effect=RAGError("OLLAMA_BASE_URL is invalid.")):
         app = AppTest.from_file(str(ROOT / "app.py")).run()
         assert not app.exception
-        assert "missing" in app.warning[0].value
+        assert "OLLAMA_BASE_URL" in app.warning[0].value
         assert app.chat_input[0].disabled and app.button[0].disabled
 
 
@@ -55,7 +55,7 @@ def test_ui_quick_prompt_starts_a_grounded_chat(tmp_path):
         store.cache_dir = tmp_path
         return original(store, *args, **kwargs)
 
-    with patch("rag.embeddings.GeminiService", return_value=fake), patch.object(VectorStore, "build", build):
+    with patch("rag.embeddings.OllamaService", return_value=fake), patch.object(VectorStore, "build", build):
         app = AppTest.from_file(str(ROOT / "app.py"), default_timeout=20).run()
         app.checkbox[0].check().run()
         app.button[0].click().run()

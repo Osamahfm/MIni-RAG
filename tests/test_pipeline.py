@@ -1,6 +1,5 @@
 import json
 from dataclasses import replace
-from types import SimpleNamespace
 from unittest.mock import Mock
 
 import faiss
@@ -10,7 +9,7 @@ import pytest
 
 from conftest import make_pdf
 from rag.config import ROOT, Settings
-from rag.embeddings import GeminiService, RAGError, api_call
+from rag.embeddings import OllamaService, RAGError, api_call
 from rag.generator import UNSUPPORTED, ask, generate_answer, rewrite_query
 from rag.pdf_processor import process_pdf
 from rag.retriever import retrieve
@@ -149,20 +148,26 @@ def test_empty_index(service):
     assert not service.calls
 
 
-def test_missing_credentials():
-    with pytest.raises(RAGError, match="missing"):
-        GeminiService(Settings(), api_key="")
+def test_no_api_key_required():
+    assert OllamaService(Settings()).settings.generation_model == Settings().generation_model
+
+
+@pytest.mark.parametrize("url", ["", "localhost:11434", "ftp://localhost", "http://localhost:11434?x=1"])
+def test_invalid_ollama_url(url):
+    with pytest.raises(RAGError, match="OLLAMA_BASE_URL"):
+        OllamaService(Settings(ollama_url=url))
 
 
 @pytest.mark.parametrize("code, calls", [(429, 3), (503, 3), (401, 1), (403, 1), (404, 1)])
 def test_retry_and_redacted_errors(code, calls):
-    error = Exception("SECRET_API_KEY_MUST_NOT_APPEAR")
-    error.code = code
+    request = httpx.Request("POST", "http://localhost:11434/api/chat")
+    error = httpx.HTTPStatusError("PRIVATE_TEXT_MUST_NOT_APPEAR", request=request,
+                                  response=httpx.Response(code, request=request))
     operation, sleep = Mock(side_effect=error), Mock()
     with pytest.raises(RAGError) as exc:
         api_call(operation, sleep)
     assert operation.call_count == calls and sleep.call_count == calls - 1
-    assert "SECRET" not in str(exc.value)
+    assert "PRIVATE_TEXT" not in str(exc.value)
 
 
 def test_network_retry_success():
@@ -173,17 +178,55 @@ def test_network_retry_success():
 
 
 def test_embedding_batching_and_validation():
+    requests = []
+
+    def handler(request):
+        requests.append(json.loads(request.content))
+        return httpx.Response(200, json={"embeddings": [[1., 0., 0.]] * len(requests[-1]["input"])})
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        service = OllamaService(Settings(dimension=3), client=client)
+        result = service.embed(["text"] * 33, "RETRIEVAL_DOCUMENT")
+        assert result.shape == (33, 3) and result.dtype == np.float32
+        assert len(requests) == 2 and len(requests[0]["input"]) == 32
+        assert requests[0]["input"][0] == "search_document: text"
+        assert requests[0]["truncate"] is False
+        service.embed(["question"], "RETRIEVAL_QUERY")
+        assert requests[-1]["input"] == ["search_query: question"]
+        assert service.embed([], "RETRIEVAL_QUERY").shape == (0, 3)
+
+
+@pytest.mark.parametrize("values", [[], [[1, 0]], [[0, 0, 0]], [[float("inf"), 0, 0]], [["bad", 0, 0]]])
+def test_invalid_embeddings(values):
     client = Mock()
-    client.models.embed_content.side_effect = lambda **kwargs: SimpleNamespace(embeddings=[SimpleNamespace(values=[1., 0., 0.]) for _ in kwargs["contents"]])
-    service = GeminiService(Settings(dimension=3), client=client)
-    result = service.embed(["text"] * 33, "RETRIEVAL_DOCUMENT")
-    assert result.shape == (33, 3) and result.dtype == np.float32
-    assert client.models.embed_content.call_count == 2
-    assert client.models.embed_content.call_args.kwargs["config"].task_type == "RETRIEVAL_DOCUMENT"
-    client.models.embed_content.side_effect = None
-    client.models.embed_content.return_value = SimpleNamespace(embeddings=[])
+    client.request.return_value.json.return_value = {"embeddings": values}
     with pytest.raises(RAGError, match="invalid embeddings"):
-        service.embed(["text"], "RETRIEVAL_QUERY")
+        OllamaService(Settings(dimension=3), client=client).embed(["text"], "RETRIEVAL_QUERY")
+
+
+def test_generation_and_model_list():
+    requests = []
+
+    def handler(request):
+        if request.url.path == "/api/tags":
+            return httpx.Response(200, json={"models": [{"name": "qwen3:4b"}]})
+        assert request.url.path == "/api/chat"
+        requests.append(json.loads(request.content))
+        return httpx.Response(200, json={"message": {"content": " ready "}})
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        service = OllamaService(Settings(), client=client)
+        assert service.list_models() == ["qwen3:4b"]
+        assert service.generate("question", "instruction") == "ready"
+        assert requests[0]["messages"] == [{"role": "system", "content": "instruction"},
+                                           {"role": "user", "content": "question"}]
+        assert requests[0]["stream"] is False and requests[0]["think"] is False
+
+
+def test_answer_model_changes_reuse_index_settings():
+    settings = Settings()
+    assert replace(settings, generation_model="other").index_config() == settings.index_config()
+    assert settings.index_config()["provider"] == "ollama"
 
 
 @pytest.mark.parametrize("damage", ["index_dimension", "page_range", "wrong_source", "wrong_hash", "invalid_statistics"])
