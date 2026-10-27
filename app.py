@@ -9,6 +9,12 @@ from rag.embeddings import GeminiService, RAGError
 from rag.generator import ask, citation
 from rag.vector_store import VectorStore
 
+QUICK_PROMPTS = (
+    "Summarize the key ideas",
+    "What are the main takeaways?",
+    "Compare the documents",
+)
+
 
 def display_message(message):
     with st.chat_message(message["role"]):
@@ -24,35 +30,32 @@ def display_message(message):
             with st.expander(f"Retrieved passages ({len(message['sources'])})"):
                 st.caption("Search results may include passages that were not cited in the answer. Scores measure similarity, not confidence.")
                 for source in message["sources"]:
-                    st.text(f"{source['source']} · Page {source['page']} · Similarity {source['score']:.3f}")
-                    st.text(source["text"])
-                    st.divider()
+                    with st.container(border=True):
+                        st.caption(f"{source['source']} · Page {source['page']} · Similarity {source['score']:.3f}")
+                        st.write(source["text"])
 
 
 def main():
     st.set_page_config(page_title="Mini RAG | Chat with PDFs", page_icon="📚", layout="wide")
-    st.markdown("""<style>
-        .block-container {max-width: 1100px; padding-top: 2rem;}
-        [data-testid="stChatMessage"] {border-radius: 12px; padding: 1.2rem;}
-        [data-testid="stMetric"] {background: var(--secondary-background-color); padding: .8rem; border-radius: 10px;}
-        </style>""", unsafe_allow_html=True)
-    st.title("📚 Mini RAG")
-    st.caption("CHAT WITH YOUR PDF LIBRARY · Answers with document evidence")
     st.session_state.setdefault("messages", [])
     st.session_state.setdefault("database", None)
     st.session_state.setdefault("selection", None)
+    st.session_state.setdefault("pending_question", None)
     service = None
     try:
         service = GeminiService(Settings())
     except RAGError as exc:
         st.warning(str(exc))
 
+    st.title("Mini RAG", icon=":material/menu_book:")
+    st.caption("Ask questions across your PDFs and trace every answer back to its source.")
+
     with st.sidebar:
-        st.header("Your documents")
-        files = st.file_uploader("Upload PDFs", type="pdf", accept_multiple_files=True,
+        st.header("Your library", icon=":material/folder_open:")
+        files = st.file_uploader("Add PDF files", type="pdf", accept_multiple_files=True,
                                  help="Text PDFs work best. Remove a file using its × button.")
         use_sample = st.checkbox("Use included document.pdf", value=False) if (ROOT / "document.pdf").exists() else False
-        with st.expander("Retrieval settings"):
+        with st.expander("Retrieval settings", icon=":material/tune:"):
             chunk_size = st.number_input("Chunk size (characters)", min_value=100, max_value=2000, value=500, step=100)
             overlap = st.number_input("Chunk overlap (characters)", min_value=0, max_value=int(chunk_size) - 1, value=min(100, int(chunk_size) - 1), step=10)
             top_k = st.slider("Retrieved passages", 3, 5, 4)
@@ -65,14 +68,17 @@ def main():
         if selection != st.session_state.selection:
             st.session_state.database = None
             st.session_state.messages = []
+            st.session_state.pending_question = None
             st.session_state.selection = selection
-        if st.button("Build document library", type="primary", disabled=not documents or service is None, use_container_width=True):
+        if st.button("Build document library", type="primary", icon=":material/library_add:",
+                     disabled=not documents or service is None, width="stretch"):
             progress = st.progress(0, text="Reading documents and preparing the index…")
             try:
                 service.settings = settings
                 with st.spinner("Preparing your library…"):
                     st.session_state.database = VectorStore(ROOT / "cache", settings).build(documents, service, progress.progress)
                 st.session_state.messages = []
+                st.session_state.pending_question = None
             except RAGError as exc:
                 st.error(str(exc))
             except OSError:
@@ -81,29 +87,58 @@ def main():
                 st.error("The library could not be built. Check the PDFs and try again.")
             finally:
                 progress.empty()
-        if st.button("Clear Chat", use_container_width=True):
+        if st.button("Clear chat", icon=":material/delete_sweep:", disabled=not st.session_state.messages,
+                     width="stretch"):
             st.session_state.messages = []
+            st.session_state.pending_question = None
         st.caption("PDF text and questions are sent to Google Gemini. Indexes stay in this project's cache folder.")
 
     database = st.session_state.database
     if database:
         columns = st.columns(3)
-        columns[0].metric("Documents", len(database.documents))
-        columns[1].metric("Pages", sum(d["pages"] for d in database.documents))
-        columns[2].metric("Indexed chunks", len(database.chunks))
+        with columns[0].container(border=True):
+            st.metric("Documents", len(database.documents))
+        with columns[1].container(border=True):
+            st.metric("Pages", sum(d["pages"] for d in database.documents))
+        with columns[2].container(border=True):
+            st.metric("Indexed chunks", len(database.chunks))
+        st.badge("Loaded from cache" if database.cached else "Library ready",
+                 icon=":material/check_circle:", color="green")
         with st.sidebar:
-            st.success("Library loaded from disk" if database.cached else "Library ready")
-            for doc in database.documents:
-                st.text(f"{doc['source']} · {doc['pages']} pages · {doc.get('chunks', 0)} chunks")
+            with st.expander(f"Indexed documents ({len(database.documents)})", icon=":material/description:"):
+                for doc in database.documents:
+                    with st.container(border=True):
+                        st.text(doc["source"])
+                        st.caption(f"{doc['pages']} pages · {doc.get('chunks', 0)} chunks")
         for warning in database.warnings:
             st.warning(warning)
     else:
-        st.info("Upload your lecture notes or select the included PDF, then click **Build document library**.")
-        st.markdown("Ask a question, explore a follow-up, and inspect the passages behind each answer.")
+        with st.container(border=True):
+            st.subheader("Start with your PDFs", icon=":material/auto_stories:")
+            st.write("Build a searchable library, then ask questions grounded in the documents you choose.")
+            steps = st.columns(3)
+            for column, icon, title, detail in zip(
+                steps,
+                (":material/upload_file:", ":material/library_add:", ":material/forum:"),
+                ("Add documents", "Build your library", "Ask with confidence"),
+                ("Upload PDFs or use the sample.", "Create a searchable index.", "Inspect answers and page references."),
+            ):
+                with column.container(border=True):
+                    st.markdown(f"{icon} **{title}**")
+                    st.caption(detail)
 
     for message in st.session_state.messages:
         display_message(message)
+    if database and not st.session_state.messages:
+        st.caption("Try a question to get started")
+        with st.container(horizontal=True):
+            for index, prompt in enumerate(QUICK_PROMPTS):
+                if st.button(prompt, key=f"quick_prompt_{index}", icon=":material/arrow_outward:",
+                             width="stretch"):
+                    st.session_state.pending_question = prompt
     question = st.chat_input("Ask about your documents…", disabled=database is None or service is None)
+    question = question or st.session_state.pending_question
+    st.session_state.pending_question = None
     if question:
         if not question.strip():
             st.warning("Please enter a non-empty question.")

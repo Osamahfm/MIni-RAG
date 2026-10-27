@@ -45,3 +45,23 @@ def test_ui_missing_credentials():
         assert not app.exception
         assert "missing" in app.warning[0].value
         assert app.chat_input[0].disabled and app.button[0].disabled
+
+
+def test_ui_quick_prompt_starts_a_grounded_chat(tmp_path):
+    fake = FakeService()
+    original = VectorStore.build
+
+    def build(store, *args, **kwargs):
+        store.cache_dir = tmp_path
+        return original(store, *args, **kwargs)
+
+    with patch("rag.embeddings.GeminiService", return_value=fake), patch.object(VectorStore, "build", build):
+        app = AppTest.from_file(str(ROOT / "app.py"), default_timeout=20).run()
+        app.checkbox[0].check().run()
+        app.button[0].click().run()
+        assert not app.exception
+        prompt_button = next(button for button in app.button if button.label == "Summarize the key ideas")
+        prompt_button.click().run()
+        assert not app.exception
+        assert len(app.session_state["messages"]) == 2
+        assert app.session_state["messages"][0]["content"] == "Summarize the key ideas"

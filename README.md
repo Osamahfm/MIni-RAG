@@ -27,9 +27,9 @@ If PowerShell blocks activation, use `.\.venv\Scripts\python.exe -m streamlit ru
 1. Upload several PDFs in the sidebar, or select **Use included document.pdf** for a demonstration.
 2. Optionally change chunk size, overlap, and number of retrieved passages. Click **Build document library**.
 3. Check document names, page totals, indexed chunks, and warnings. Password protected or unreadable documents are skipped; image-only pages need OCR first.
-4. Ask a question, then a follow-up such as “What are its advantages?”
+4. Choose a suggested starter question or ask your own, then try a follow-up such as “What are its advantages?”
 5. Expand **Search query** to see how the question was rewritten. Expand **Retrieved passages** to inspect filenames, original page numbers, exact text, and similarity scores.
-6. **Clear Chat** clears the conversation while keeping the library. Removing/uploading files or changing chunking settings resets the active library and conversation; click Build again. Uploaded files are held for the session. To reuse a disk cache after a restart, select the same PDFs and click Build again.
+6. **Clear chat** clears the conversation while keeping the library. Removing/uploading files or changing chunking settings resets the active library and conversation; click Build again. Uploaded files are held for the session. To reuse a disk cache after a restart, select the same PDFs and click Build again.
 
 The interface does not automatically index on every rerun. Existing document embeddings are reused when a collection changes, even if a file is renamed. Identical file contents are indexed once; the first selected filename represents duplicates. Distinct documents may have the same filename, so use distinct names for clearer citations.
 
